@@ -21,7 +21,7 @@ const orders = new Map();
 app.post('/api/webhook/paypal', (req, res) => {
   try {
     const webhookData = req.body;
-    console.log('🔔 PayPal Webhook:', webhookData.event_type);
+    console.log('🔔 PayPal Webhook Received:', webhookData.event_type);
 
     const eventType = webhookData.event_type;
     const resource = webhookData.resource || {};
@@ -53,15 +53,20 @@ app.post('/api/webhook/paypal', (req, res) => {
       status,
       eventType,
       amount: resource.amount,
-      timestamp: webhookData.create_time
+      timestamp: webhookData.create_time,
+      // Store additional useful data
+      payer: resource.payer || webhookData.resource?.payer,
+      items: resource.purchase_units?.[0]?.items
     });
 
     console.log(`✅ Updated order ${orderId}: ${status}`);
+    console.log(`💰 Amount: ${resource.amount?.value} ${resource.amount?.currency_code}`);
 
     res.status(200).json({ 
       status: 'success', 
       orderId,
-      eventType 
+      eventType,
+      processedStatus: status
     });
 
   } catch (error) {
@@ -94,7 +99,9 @@ app.get('/api/health', (req, res) => {
     status: 'healthy', 
     service: 'King Solarman Backend',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    totalOrders: orders.size,
+    version: '1.0.0'
   });
 });
 
@@ -103,6 +110,7 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'King Solarman Backend API',
     environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
     endpoints: {
       webhook: 'POST /api/webhook/paypal',
       orderStatus: 'GET /api/orders/:orderId',
@@ -113,25 +121,42 @@ app.get('/', (req, res) => {
       'http://localhost:3000',
       'https://king-solarman-frontend.vercel.app',
       'https://kingsolarman.co.bw'
-    ]
+    ],
+    webhook_urls: {
+      sandbox: 'https://king-solarman-backend-railway.up.railway.app/api/webhook/paypal',
+      live: 'https://king-solarman-backend-railway.up.railway.app/api/webhook/paypal'
+    }
   });
 });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   const isProduction = process.env.NODE_ENV === 'production';
-  const backendUrl = isProduction 
-    ? 'https://your-railway-url.railway.app' 
-    : `http://localhost:${PORT}`;
+  const railwayUrl = 'https://king-solarman-backend-railway.up.railway.app';
+  const localUrl = `http://localhost:${PORT}`;
   
-  console.log(`🚀 King Solarman Backend Server Started`);
+  const backendUrl = isProduction ? railwayUrl : localUrl;
+  const environment = isProduction ? 'PRODUCTION' : 'DEVELOPMENT';
+
+  console.log(`╔══════════════════════════════════════╗`);
+  console.log(`║   🚀 KING SOLARMAN BACKEND SERVER   ║`);
+  console.log(`╚══════════════════════════════════════╝`);
   console.log(`📍 Port: ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔔 PayPal Webhook URL: ${backendUrl}/api/webhook/paypal`);
-  console.log(`❤️  Health Check: ${backendUrl}/api/health`);
-  console.log(`📊 Order Status: ${backendUrl}/api/orders/:orderId`);
+  console.log(`🌍 Environment: ${environment}`);
+  console.log(`🔗 Local URL: ${localUrl}`);
+  console.log(`🌐 Railway URL: ${railwayUrl}`);
+  console.log(``);
+  console.log(`🔔 PayPal Webhook Endpoints:`);
+  console.log(`   Sandbox: ${railwayUrl}/api/webhook/paypal`);
+  console.log(`   Live:    ${railwayUrl}/api/webhook/paypal`);
+  console.log(``);
+  console.log(`📊 API Endpoints:`);
+  console.log(`   Health: ${backendUrl}/api/health`);
+  console.log(`   Orders: ${backendUrl}/api/orders/:orderId`);
+  console.log(``);
   console.log(`✅ Allowed Frontends:`);
   console.log(`   - http://localhost:3000`);
   console.log(`   - https://king-solarman-frontend.vercel.app`);
   console.log(`   - https://kingsolarman.co.bw`);
+  console.log(`════════════════════════════════════════`);
 });
